@@ -123,3 +123,48 @@ app.put("/courses/:id", (req, res) => {
     data: courses[index],
   });
 });
+
+//endpoint delete 
+// DELETE /courses/1
+app.delete("/courses/:id", (req, res) => {
+  const id = parseInt(req.params.id);
+  const index = courses.findIndex((c) => c.id === id);
+  if (index === -1) {
+    return res.status(404).json({
+      status: "error",
+      message: `Data dengan id ${id} tidak ditemukan`,
+      data: null,
+    });
+  }
+  courses.splice(index, 1);
+  res.status(200).json({
+    status: "success",
+    message: `Data mata kuliah dengan id ${id} berhasil dihapus`,
+    data: null,
+  });
+});
+
+// middleware catch-all 404 (harus setelah semua route)
+app.use((req, res) => {
+  res.status(404).json({
+    status: "error",
+    message: "Endpoint tidak ditemukan",
+    data: null,
+  });
+});
+
+// penanganan error, termasuk JSON body yang salah format -> tetap JSON
+app.use((err, req, res, next) => {
+  res.status(400).json({
+    status: "error",
+    message: "Request tidak valid atau format JSON salah",
+    data: null,
+  });
+});
+
+// jalankan server (lokal) dan export untuk Vercel
+const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== "production") {
+  app.listen(PORT, () => console.log(`Server berjalan di http://localhost:${PORT}`));
+}
+module.exports = app;
