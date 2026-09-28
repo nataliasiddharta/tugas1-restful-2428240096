@@ -67,3 +67,26 @@ app.get("/courses/:id", (req, res) => {
   }
   res.json(course); // GET: data langsung tanpa status/message
 });
+
+//validasi body JSON untuk POST /courses
+app.post("/courses", (req, res) => {
+  const body = req.body || {};
+  const pesan = validasi(body);
+  if (pesan) {
+    return res.status(400).json({ status: "error", message: pesan, data: null });
+  }
+  const baru = {
+    id: nextId++,
+    kode: body.kode,
+    namaMatkul: body.namaMatkul,
+    sks: body.sks,
+    semester: body.semester,
+    dosenPengampu: body.dosenPengampu || "",
+  };
+  courses.push(baru);
+  res.status(201).json({
+    status: "success",
+    message: "Data mata kuliah berhasil ditambahkan",
+    data: baru,
+  });
+});
