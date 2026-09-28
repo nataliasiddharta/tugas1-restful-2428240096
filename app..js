@@ -68,6 +68,7 @@ app.get("/courses/:id", (req, res) => {
   res.json(course); // GET: data langsung tanpa status/message
 });
 
+// post
 //validasi body JSON untuk POST /courses
 app.post("/courses", (req, res) => {
   const body = req.body || {};
@@ -88,5 +89,37 @@ app.post("/courses", (req, res) => {
     status: "success",
     message: "Data mata kuliah berhasil ditambahkan",
     data: baru,
+  });
+});
+
+//put course 1
+app.put("/courses/:id", (req, res) => {
+  const id = parseInt(req.params.id);
+  const index = courses.findIndex((c) => c.id === id);
+  if (index === -1) {
+    return res.status(404).json({
+      status: "error",
+      message: `Data dengan id ${id} tidak ditemukan`,
+      data: null,
+    });
+  }
+  const body = req.body || {};
+  const pesan = validasi(body);
+  if (pesan) {
+    return res.status(400).json({ status: "error", message: pesan, data: null });
+  }
+  // penggantian penuh: semua field diganti, id tetap
+  courses[index] = {
+    id,
+    kode: body.kode,
+    namaMatkul: body.namaMatkul,
+    sks: body.sks,
+    semester: body.semester,
+    dosenPengampu: body.dosenPengampu || "",
+  };
+  res.status(200).json({
+    status: "success",
+    message: "Data mata kuliah berhasil diubah",
+    data: courses[index],
   });
 });
