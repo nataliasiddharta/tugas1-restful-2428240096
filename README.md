@@ -581,4 +581,302 @@ Membatasi data 1 per halaman dan menyertakan info total halaman:
 
 ---
 
+---
 
+
+
+
+
+
+
+```markdown
+# 📚 Dokumentasi Praktikum: RESTful API MongoDB (Embedding, Referencing & Advanced Query)
+
+**Nama:** Natalia Siddharta  
+**NIM:** 2428240096  
+**Mata Kuliah:** Pengembangan Aplikasi Web II  
+**Topik:** 4 - Akademik (Mata Kuliah & Dosen)  
+**Dosen Pengampu:** Nur Rachmat, M.Kom.  
+
+---
+
+## 📑 Daftar Isi
+1. [Ringkasan Tugas](#1-ringkasan-tugas)
+2. [Persiapan & Konfigurasi MongoDB Atlas](#2-persiapan--konfigurasi-mongodb-atlas)
+3. [Koneksi ke MongoDB Compass](#3-koneksi-ke-mongodb-compass)
+4. [Kendala / Error yang Dihadapi & Solusinya](#4-kendala--error-yang-dihadapi--solusinya)
+5. [Implementasi Kode (Data Modeling & Fitur Query)](#5-implementasi-kode-data-modeling--fitur-query)
+6. [Panduan Pengujian Endpoint (Postman) & Format JSON](#6-panduan-pengujian-endpoint-postman--format-json)
+7. [Bukti Pengujian (Screenshots)](#7-bukti-pengujian-screenshots)
+
+---
+
+## 1. Ringkasan Tugas
+Tugas ini bertujuan memigrasikan penyimpanan data yang awalnya berbasis in-memory array menjadi database NoSQL **MongoDB** menggunakan **Mongoose**. 
+Fitur utama yang diimplementasikan:
+* **Referencing:** Relasi antara schema `Course` dengan schema `Dosen` menggunakan `ObjectId` dan metode `.populate()`.
+* **Embedding:** Penyimpanan sub-dokumen `jadwal` (hari, jam, ruangan) secara langsung di dalam dokumen `Course`.
+* **4 Fitur Query Utama pada Endpoint `GET /courses`:**
+  * **Filtering:** Menyaring data spesifik melalui query parameter (misal `?semester=3`).
+  * **Sorting:** Mengurutkan data (misal `?sort=-sks` secara descending).
+  * **Projection:** Memilih kolom/field tertentu saja yang ditampilkan (misal `?fields=kode,namaMatkul`).
+  * **Pagination:** Membatasi data per halaman menggunakan `.skip()` dan `.limit()` (misal `?page=1&limit=1`).
+
+---
+
+## 2. Persiapan & Konfigurasi MongoDB Atlas
+1. Mendaftar dan masuk ke akun **MongoDB Atlas** ([cloud.mongodb.com](https://cloud.mongodb.com)).
+2. Membuat Database Deployment baru dengan paket **M0 (Free Cluster)** pada region terdekat (AWS Singapore `ap-southeast-1`).
+3. Membuat **Database User** di menu *Database Access*:
+   * Username: `nataliasiddharta965_db_user`
+   * Password: Diset menggunakan karakter alfanumerik tanpa simbol pemisah URL agar tidak error saat parsing.
+4. Mengatur **Network Access**:
+   * Menambahkan IP Address `0.0.0.0/0` (*Allow Access from Anywhere*) agar database dapat diakses secara publik dari laptop/jaringan manapun.
+5. Mengambil Connection String untuk driver Node.js:
+   ```text
+   mongodb://.../db_akademik?ssl=true&replicaSet=...&authSource=admin
+   ```
+6. Menyimpan Connection String ke file `.env` lokal:
+   ```env
+   PORT=4000
+   MONGO_URI=mongodb+srv://<username>:<password>@cluster0.a4nzzxf.mongodb.net/db_akademik
+   ```
+
+---
+
+## 3. Koneksi ke MongoDB Compass
+1. Buka aplikasi **MongoDB Compass**.
+2. Masukkan URI koneksi MongoDB Atlas ke kolom input koneksi.
+3. Mengaktifkan saklar **Edit Connection String** untuk memastikan username, password, dan nama host sudah sesuai.
+4. Klik tombol **Save & Connect**.
+5. *Catatan:* Database contoh bawaan seperti `sample_mflix` adalah sampel resmi dari MongoDB Atlas dan dapat dihapus (*drop*) agar workspace tetap bersih.
+
+---
+
+## 4. Kendala / Error yang Dihadapi & Solusinya
+
+| No | Pesan Error | Penyebab | Solusi yang Diterapkan |
+| :---: | :--- | :--- | :--- |
+| **1** | `bad auth : authentication failed` | Password yang dimasukkan di Compass salah/belum ter-update dengan user Atlas. | Mengedit password user di menu *Database Access* Atlas menjadi password alfanumerik yang jelas, lalu diisikan ulang ke Compass. |
+| **2** | `SyntaxError: Identifier 'express' has already been declared` | Kode lama dan kode baru tertumpuk di `app.js` sehingga modul Express diimpor dua kali. | Membersihkan file `app.js` dan menata ulang urutan impor agar tidak ada deklarasi ganda. |
+| **3** | `Cannot find module 'dotenv'` | Package `dotenv` dan `mongoose` belum terpasang di dependencies lokal. | Menjalankan perintah `npm install dotenv mongoose cors` di terminal. |
+| **4** | `querySrv ECONNREFUSED ...` | DNS bawaan provider internet/WiFi memblokir resolusi DNS SRV (`mongodb+srv://`). | Menggunakan connection string standar non-SRV (Legacy URI) atau mengganti DNS laptop ke Google DNS (`8.8.8.8`). |
+| **5** | `Cast to ObjectId failed for value "PASTE_ID_DOSEN_KAMU_DI_SINI"` | Field `dosenPengampu` diisi teks placeholder dan bukan format ID MongoDB yang valid. | Melakukan `POST /dosen` terlebih dahulu, meng-copy ID asli (`6ae8a59dcf44c8fb5591488e`), lalu memasukkannya ke body request course. |
+| **6** | `E11000 duplicate key error collection: ... dup key: { kode: "SI501" }` | Mencoba melakukan POST kode matkul yang sama, padahal field `kode` di-set `unique: true`. | Mengganti kode matkul dengan data kedua (`SI302`) untuk mata kuliah berikutnya. |
+| **7** | `Updates were rejected because the remote contains work...` saat git push | Ada perbedaan commit antara file lokal dan file yang sempat diunggah di web GitHub. | Menjalankan `git pull origin main --rebase` lalu dilanjutkan dengan `git push origin main`. |
+
+---
+
+## 5. Implementasi Kode (Data Modeling & Fitur Query)
+
+Berikut adalah struktur kode utama yang diterapkan di `app.js`:
+
+### A. Schema Referencing (Model Dosen)
+```javascript
+const dosenSchema = new mongoose.Schema({
+  nidn: { type: String, required: true, unique: true },
+  nama: { type: String, required: true },
+  email: { type: String, required: true },
+});
+const Dosen = mongoose.model("Dosen", dosenSchema);
+```
+
+### B. Schema Embedding & Schema Utama (Mata Kuliah)
+```javascript
+// 1. EMBEDDING: Sub-dokumen jadwal
+const jadwalSchema = new mongoose.Schema({
+  hari: { type: String, required: true },
+  jamMulai: { type: String, required: true },
+  jamSelesai: { type: String, required: true },
+  ruangan: { type: String, required: true },
+});
+
+// 2. SCHEMA UTAMA
+const courseSchema = new mongoose.Schema(
+  {
+    kode: { type: String, required: true, unique: true },
+    namaMatkul: { type: String, required: true },
+    sks: { type: Number, required: true },
+    semester: { type: Number, required: true },
+    // REFERENCING ke koleksi Dosen:
+    dosenPengampu: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Dosen",
+      required: true,
+    },
+    // EMBEDDING array sub-dokumen:
+    jadwal: [jadwalSchema],
+  },
+  { timestamps: true }
+);
+const Course = mongoose.model("Course", courseSchema);
+```
+
+### C. Implementasi Query di Endpoint `GET /courses`
+```javascript
+app.get("/courses", async (req, res, next) => {
+  try {
+    // 1. FILTERING
+    const queryObj = { ...req.query };
+    const excludedFields = ["page", "sort", "limit", "fields"];
+    excludedFields.forEach((el) => delete queryObj[el]);
+
+    let query = Course.find(queryObj);
+
+    // 2. SORTING (Contoh: ?sort=-sks)
+    if (req.query.sort) {
+      const sortBy = req.query.sort.split(",").join(" ");
+      query = query.sort(sortBy);
+    } else {
+      query = query.sort("-createdAt");
+    }
+
+    // 3. PROJECTION (Contoh: ?fields=kode,namaMatkul)
+    if (req.query.fields) {
+      const fields = req.query.fields.split(",").join(" ");
+      query = query.select(fields);
+    } else {
+      query = query.select("-__v");
+    }
+
+    // 4. PAGINATION (Contoh: ?page=1&limit=1)
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const skip = (page - 1) * limit;
+
+    query = query.skip(skip).limit(limit);
+
+    // REFERENCING: Mengambil data relasi dosen dengan .populate()
+    query = query.populate("dosenPengampu", "nidn nama email");
+
+    const courses = await query;
+    const totalData = await Course.countDocuments(queryObj);
+
+    res.status(200).json({
+      status: "success",
+      totalData,
+      currentPage: page,
+      totalPages: Math.ceil(totalData / limit),
+      results: courses.length,
+      data: courses,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+```
+
+---
+
+## 6. Panduan Pengujian Endpoint (Postman) & Format JSON
+
+### 1. Tambah Data Dosen (POST)
+* **Method:** `POST`
+* **URL:** `http://localhost:4000/dosen`
+* **Headers:** `Content-Type: application/json`
+* **Body (raw JSON):**
+  ```json
+  {
+    "nidn": "0214058001",
+    "nama": "Nur Rachmat, M.Kom.",
+    "email": "nur.rachmat@mdp.ac.id"
+  }
+  ```
+* *Hasil Respon:* Status `201 Created` dan menghasilkan `_id` dosen: `6ae8a59dcf44c8fb5591488e`.
+
+---
+
+### 2. Tambah Data Mata Kuliah 1 (POST - Embedding & Referencing)
+* **Method:** `POST`
+* **URL:** `http://localhost:4000/courses`
+* **Body (raw JSON):**
+  ```json
+  {
+    "kode": "SI501",
+    "namaMatkul": "Pengembangan Aplikasi Web II",
+    "sks": 4,
+    "semester": 5,
+    "dosenPengampu": "6ae8a59dcf44c8fb5591488e",
+    "jadwal": [
+      {
+        "hari": "Senin",
+        "jamMulai": "07:30",
+        "jamSelesai": "10:00",
+        "ruangan": "Lab Komputer 3"
+      }
+    ]
+  }
+  ```
+
+---
+
+### 3. Tambah Data Mata Kuliah 2 (POST)
+* **Method:** `POST`
+* **URL:** `http://localhost:4000/courses`
+* **Body (raw JSON):**
+  ```json
+  {
+    "kode": "SI302",
+    "namaMatkul": "Basis Data",
+    "sks": 2,
+    "semester": 3,
+    "dosenPengampu": "6ae8a59dcf44c8fb5591488e",
+    "jadwal": [
+      {
+        "hari": "Rabu",
+        "jamMulai": "10:30",
+        "jamSelesai": "12:00",
+        "ruangan": "Ruang Teori 2"
+      }
+    ]
+  }
+  ```
+
+---
+
+### 4. Pengujian Fitur Query (GET)
+
+* **A. Bukti Referencing & Embedding:**
+  * **Method:** `GET`
+  * **URL:** `http://localhost:4000/courses`
+  * **Keterangan:** Menampilkan seluruh data di mana `dosenPengampu` muncul lengkap informasinya (populate) dan `jadwal` tertanam rapi di dalam dokumen.
+
+* **B. Bukti Filtering:**
+  * **Method:** `GET`
+  * **URL:** `http://localhost:4000/courses?semester=3`
+  * **Keterangan:** Hanya menampilkan mata kuliah yang berada pada semester 3 (Basis Data).
+
+* **C. Bukti Sorting:**
+  * **Method:** `GET`
+  * **URL:** `http://localhost:4000/courses?sort=-sks`
+  * **Keterangan:** Data diurutkan dari SKS terbesar (SKS 4) ke SKS terkecil (SKS 2).
+
+* **D. Bukti Projection:**
+  * **Method:** `GET`
+  * **URL:** `http://localhost:4000/courses?fields=kode,namaMatkul`
+  * **Keterangan:** Hanya menampilkan field `kode` dan `namaMatkul`. Field lainnya disembunyikan.
+
+* **E. Bukti Pagination:**
+  * **Method:** `GET`
+  * **URL:** `http://localhost:4000/courses?page=1&limit=1`
+  * **Keterangan:** Membatasi jumlah data yang tampil hanya 1 data per halaman dan menampilkan informasi `currentPage: 1` serta `totalPages: 2`.
+
+---
+
+## 7. Bukti Pengujian (Screenshots)
+
+### 1. Bukti Referencing & Embedding (`GET /courses`)
+![Referencing & Embedding](<Screenshot Pengujian/01 refrencing dan embedding.png>)
+
+### 2. Bukti Filtering (`GET /courses?semester=3`)
+![Filtering](<Screenshot Pengujian/02 filtering.jpeg>)
+
+### 3. Bukti Sorting (`GET /courses?sort=-sks`)
+![Sorting](<Screenshot Pengujian/03 sorting.png>)
+
+### 4. Bukti Projection (`GET /courses?fields=kode,namaMatkul`)
+![Projection](<Screenshot Pengujian/04 projection.png>)
+
+### 5. Bukti Pagination (`GET /courses?page=1&limit=1`)
+![Pagination](<Screenshot Pengujian/05 pagination.png>)
+```
