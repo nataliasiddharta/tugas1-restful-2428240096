@@ -1,41 +1,82 @@
-// impor express
+require("dotenv").config();
 const express = require("express");
-const app = express();
+const mongoose = require("mongoose");
 
-// middleware untuk membaca body JSON
+const app = express();
 app.use(express.json());
 
-// data awal (array di memori)
-let courses = [
-  { id: 1, kode: "IF301", namaMatkul: "Pemrograman Web Lanjut", sks: 3, semester: 3, dosenPengampu: "Budi Santoso, M.Kom" },
-  { id: 2, kode: "SI302", namaMatkul: "Basis Data", sks: 3, semester: 3, dosenPengampu: "Siti Rahma, M.T." },
-  { id: 3, kode: "SI501", namaMatkul: "Pengembangan Aplikasi Web II", sks: 3, semester: 5, dosenPengampu: "Andi Wijaya, M.Kom" },
-];
-let nextId = 4; // id berikutnya
+// ==============================================================
+// 1. KONEKSI KE MONGODB ATLAS
+// ==============================================================
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then((conn) => {
+    console.log(`✅ MongoDB Terhubung ke host: ${conn.connection.host}`);
+    console.log(`✅ Nama Database: ${conn.connection.name}`);
+  })
+  .catch((err) => {
+    console.error(`❌ Gagal koneksi ke MongoDB: ${err.message}`);
+    process.exit(1);
+  });
 
-// fungsi validasi field wajib (kembalikan pesan error, atau null jika valid)
-function validasi(body) {
-  const { kode, namaMatkul, sks, semester } = body;
-  if (!kode) return "Field kode wajib diisi";
-  if (!namaMatkul) return "Field namaMatkul wajib diisi";
-  if (sks === undefined || sks === null || sks === "") return "Field sks wajib diisi";
-  if (typeof sks !== "number") return "Field sks harus berupa angka";
-  if (semester === undefined || semester === null || semester === "") return "Field semester wajib diisi";
-  if (typeof semester !== "number") return "Field semester harus berupa angka";
-  return null;
-}
+// ==============================================================
+// 2. SCHEMA & MODEL (Embedding & Referencing Sesuai GitBook)
+// ==============================================================
 
-// GET /
+// A. REFERENCING: Model Dosen (Koleksi Mandiri)
+const dosenSchema = new mongoose.Schema({
+  nidn: { type: String, required: true, unique: true },
+  nama: { type: String, required: true },
+  email: { type: String, required: true },
+});
+const Dosen = mongoose.model("Dosen", dosenSchema);
+
+// B. EMBEDDING: Sub-Dokumen Jadwal
+const jadwalSchema = new mongoose.Schema({
+  hari: { type: String, required: true },
+  jamMulai: { type: String, required: true },
+  jamSelesai: { type: String, required: true },
+  ruangan: { type: String, required: true },
+});
+
+// C. MODEL UTAMA: Mata Kuliah
+const courseSchema = new mongoose.Schema(
+  {
+    kode: { type: String, required: true, unique: true },
+    namaMatkul: { type: String, required: true },
+    sks: { type: Number, required: true },
+    semester: { type: Number, required: true },
+
+    // REFERENCING: Menyimpan ObjectId yang merujuk ke model Dosen
+    dosenPengampu: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Dosen",
+      required: true,
+    },
+
+    // EMBEDDING: Array sub-dokumen jadwal tertanam langsung di sini
+    jadwal: [jadwalSchema],
+  },
+  { timestamps: true }
+);
+const Course = mongoose.model("Course", courseSchema);
+
+// ==============================================================
+// 3. ENDPOINT / RUTE
+// ==============================================================
+
+// GET / : Informasi Mahasiswa & Petunjuk Endpoint
 app.get("/", (req, res) => {
   res.json({
     nama: "Natalia Siddharta",
     nim: "2428240096",
     topik: 4,
-    resource: "Akademik - Mata Kuliah",
+    resource: "Akademik - Mata Kuliah (MongoDB Decoupled)",
     endpoints: [
-      "GET /courses",
+      "POST /dosen (Buat data dosen untuk relasi referencing)",
+      "GET /dosen",
+      "GET /courses (Filtering, Sorting, Projection, Pagination)",
       "GET /courses/:id",
-      "GET /courses?semester=3",
       "POST /courses",
       "PUT /courses/:id",
       "DELETE /courses/:id",
@@ -43,108 +84,159 @@ app.get("/", (req, res) => {
   });
 });
 
-// GET /courses  atau  GET /courses?semester=3
-app.get("/courses", (req, res) => {
-  const { semester } = req.query;
-  if (semester !== undefined) {
-    // filter berdasarkan semester, kembalikan array (boleh kosong)
-    const hasil = courses.filter((c) => c.semester === parseInt(semester));
-    return res.json(hasil);
+// --- RUTE DOSEN (Untuk kebutuhan Referencing) ---
+app.post("/dosen", async (req, res, next) => {
+  try {
+    const dosenBaru = await Dosen.create(req.body);
+    res.status(201).json({ status: "success", data: dosenBaru });
+  } catch (err) {
+    next(err);
   }
-  res.json(courses);
 });
 
-// GET /courses/1
-app.get("/courses/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  const course = courses.find((c) => c.id === id);
-  if (!course) {
-    return res.status(404).json({
-      status: "error",
-      message: `Data dengan id ${id} tidak ditemukan`,
+app.get("/dosen", async (req, res, next) => {
+  try {
+    const dosens = await Dosen.find();
+    res.json({ status: "success", data: dosens });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- RUTE UTAMA: COURSES (Mata Kuliah) ---
+
+// GET /courses : Mendukung Filtering, Sorting, Projection, Pagination, & Referencing
+app.get("/courses", async (req, res, next) => {
+  try {
+    // 1. FILTERING
+    const queryObj = { ...req.query };
+    const excludedFields = ["page", "sort", "limit", "fields"];
+    excludedFields.forEach((el) => delete queryObj[el]);
+
+    let query = Course.find(queryObj);
+
+    // 2. SORTING (Contoh: ?sort=sks atau ?sort=-sks)
+    if (req.query.sort) {
+      const sortBy = req.query.sort.split(",").join(" ");
+      query = query.sort(sortBy);
+    } else {
+      query = query.sort("-createdAt");
+    }
+
+    // 3. PROJECTION (Contoh: ?fields=kode,namaMatkul)
+    if (req.query.fields) {
+      const fields = req.query.fields.split(",").join(" ");
+      query = query.select(fields);
+    } else {
+      query = query.select("-__v");
+    }
+
+    // 4. PAGINATION (Contoh: ?page=1&limit=2)
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const skip = (page - 1) * limit;
+
+    query = query.skip(skip).limit(limit);
+
+    // 5. REFERENCING (.populate detail dosen)
+    query = query.populate("dosenPengampu", "nidn nama email");
+
+    const courses = await query;
+    const totalData = await Course.countDocuments(queryObj);
+
+    res.status(200).json({
+      status: "success",
+      totalData,
+      currentPage: page,
+      totalPages: Math.ceil(totalData / limit),
+      results: courses.length,
+      data: courses,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /courses/:id
+app.get("/courses/:id", async (req, res, next) => {
+  try {
+    const course = await Course.findById(req.params.id).populate("dosenPengampu");
+    if (!course) {
+      return res.status(404).json({
+        status: "error",
+        message: `Data dengan id ${req.params.id} tidak ditemukan`,
+        data: null,
+      });
+    }
+    res.json({ status: "success", data: course });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /courses : Tambah Matkul + ID Dosen + Embedded Jadwal
+app.post("/courses", async (req, res, next) => {
+  try {
+    const baru = await Course.create(req.body);
+    res.status(201).json({
+      status: "success",
+      message: "Data mata kuliah berhasil ditambahkan ke MongoDB",
+      data: baru,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /courses/:id
+app.put("/courses/:id", async (req, res, next) => {
+  try {
+    const updated = await Course.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!updated) {
+      return res.status(404).json({
+        status: "error",
+        message: `Data dengan id ${req.params.id} tidak ditemukan`,
+        data: null,
+      });
+    }
+    res.status(200).json({
+      status: "success",
+      message: "Data mata kuliah berhasil diubah",
+      data: updated,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /courses/:id
+app.delete("/courses/:id", async (req, res, next) => {
+  try {
+    const deleted = await Course.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({
+        status: "error",
+        message: `Data dengan id ${req.params.id} tidak ditemukan`,
+        data: null,
+      });
+    }
+    res.status(200).json({
+      status: "success",
+      message: `Data mata kuliah dengan id ${req.params.id} berhasil dihapus`,
       data: null,
     });
+  } catch (err) {
+    next(err);
   }
-  res.json(course); // GET: data langsung tanpa status/message
 });
 
-// post
-//validasi body JSON untuk POST /courses
-app.post("/courses", (req, res) => {
-  const body = req.body || {};
-  const pesan = validasi(body);
-  if (pesan) {
-    return res.status(400).json({ status: "error", message: pesan, data: null });
-  }
-  const baru = {
-    id: nextId++,
-    kode: body.kode,
-    namaMatkul: body.namaMatkul,
-    sks: body.sks,
-    semester: body.semester,
-    dosenPengampu: body.dosenPengampu || "",
-  };
-  courses.push(baru);
-  res.status(201).json({
-    status: "success",
-    message: "Data mata kuliah berhasil ditambahkan",
-    data: baru,
-  });
-});
+// ==============================================================
+// 4. ERROR HANDLING
+// ==============================================================
 
-//put course 1
-app.put("/courses/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  const index = courses.findIndex((c) => c.id === id);
-  if (index === -1) {
-    return res.status(404).json({
-      status: "error",
-      message: `Data dengan id ${id} tidak ditemukan`,
-      data: null,
-    });
-  }
-  const body = req.body || {};
-  const pesan = validasi(body);
-  if (pesan) {
-    return res.status(400).json({ status: "error", message: pesan, data: null });
-  }
-  // penggantian penuh: semua field diganti, id tetap
-  courses[index] = {
-    id,
-    kode: body.kode,
-    namaMatkul: body.namaMatkul,
-    sks: body.sks,
-    semester: body.semester,
-    dosenPengampu: body.dosenPengampu || "",
-  };
-  res.status(200).json({
-    status: "success",
-    message: "Data mata kuliah berhasil diubah",
-    data: courses[index],
-  });
-});
-
-//endpoint delete 
-// DELETE /courses/1
-app.delete("/courses/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  const index = courses.findIndex((c) => c.id === id);
-  if (index === -1) {
-    return res.status(404).json({
-      status: "error",
-      message: `Data dengan id ${id} tidak ditemukan`,
-      data: null,
-    });
-  }
-  courses.splice(index, 1);
-  res.status(200).json({
-    status: "success",
-    message: `Data mata kuliah dengan id ${id} berhasil dihapus`,
-    data: null,
-  });
-});
-
-// middleware catch-all 404 (harus setelah semua route)
 app.use((req, res) => {
   res.status(404).json({
     status: "error",
@@ -153,18 +245,18 @@ app.use((req, res) => {
   });
 });
 
-// penanganan error, termasuk JSON body yang salah format -> tetap JSON
 app.use((err, req, res, next) => {
   res.status(400).json({
     status: "error",
-    message: "Request tidak valid atau format JSON salah",
+    message: err.message || "Request tidak valid",
     data: null,
   });
 });
 
-// jalankan server (lokal) dan export untuk Vercel
-const PORT = process.env.PORT || 3000;
+// 5. MENJALANKAN SERVER
+const PORT = process.env.PORT || 4000;
 if (process.env.NODE_ENV !== "production") {
-  app.listen(PORT, () => console.log(`Server berjalan di http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`🚀 Server berjalan di http://localhost:${PORT}`));
 }
+
 module.exports = app;
