@@ -581,10 +581,4 @@ Membatasi data 1 per halaman dan menyertakan info total halaman:
 
 ---
 
-Setelah kamu simpan ke `README.md`, jalankan bash ini di terminal:
 
-```bash
-git add README.md
-git commit -m "docs: dokumentasi super lengkap praktikum mongodb"
-git push origin main
-```
