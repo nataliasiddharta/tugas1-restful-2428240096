@@ -1,3 +1,41 @@
+---
+
+## 🧠 Konsep Dasar: Embedding vs Referencing (Bekal Ujian)
+
+Untuk menjawab soal studi kasus perancangan database NoSQL, gunakan aturan sederhana ini:
+
+### 1. Kapan Memilih EMBEDDING? (Data Ditanam di Dalam)
+* **Konsep:** Data anak disimpan langsung di dalam satu dokumen induk.
+* **Kapan Dipakai:** 
+  * Hubungan *One-to-Few* (1 induk punya sedikit data anak).
+  * Data tersebut **tidak berdiri sendiri** dan selalu diakses barengan dengan data induk.
+* **Contoh di Kasus Kita:** **Jadwal Kuliah**
+  * *Alasan:* Jadwal kuliah ("Senin jam 08:00 di Lab 3") tidak ada artinya jika tidak ada mata kuliahnya. Jumlah jadwal untuk 1 matkul juga sedikit (paling 1-2 jadwal), jadi lebih cepat dan efisien jika **ditanam (embed)** langsung di dalam matkul.
+* **Studi Kasus Lain di Ujian:**
+  * Alamat pengiriman di profil Pengguna (User).
+  * Detail barang/item di dalam sebuah Struk Pesanan (Order).
+
+---
+
+### 2. Kapan Memilih REFERENCING? (Data Dipisah & Dihubungkan via ID)
+* **Konsep:** Data disimpan di koleksi/tabel terpisah, dokumen induk hanya menyimpan nomor ID (`ObjectId`) dari dokumen target.
+* **Kapan Dipakai:**
+  * Hubungan *One-to-Many* atau *Many-to-Many* yang besar/berulang.
+  * Data target adalah **entitas mandiri** yang bisa mengajar/berelasi dengan banyak dokumen lain.
+* **Contoh di Kasus Kita:** **Dosen Pengampu**
+  * *Alasan:* Dosen adalah entitas mandiri yang punya NIDN dan data pribadi. 1 Dosen bisa mengajar 5 mata kuliah berbeda. Kalau di-embed, data dosen akan terduplikasi di 5 tempat berbeda. Maka Dosen **dipisah (reference)**, dan di matkul cukup catat ID dosennya saja.
+* **Studi Kasus Lain di Ujian:**
+  * Kategori buku di Perpustakaan (1 Kategori punya ribuan buku).
+  * Dokter di Rumah Sakit (1 Dokter menangani banyak rekam medis pasien).
+
+---
+
+### 3. Apa itu `.populate()`?
+Di MongoDB, tidak ada perintah SQL `JOIN`. Sebagai gantinya, Mongoose menyediakan fungsi `.populate('dosenPengampu')`.
+* **Fungsi:** Mengambil ID yang tersimpan di field `dosenPengampu`, lalu secara otomatis pergi ke koleksi Dosen untuk menukar ID tersebut dengan data asli dosen (nama, nidn, email) saat ditampilkan ke klien.
+
+
+
 ```markdown
 # 📚 Dokumentasi Lengkap Praktikum: RESTful API Express.js & MongoDB
 ### Implementasi Data Modeling (Embedding & Referencing) serta Advanced Querying (Filtering, Sorting, Projection, Pagination)
