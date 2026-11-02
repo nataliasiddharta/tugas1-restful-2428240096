@@ -880,3 +880,72 @@ app.get("/courses", async (req, res, next) => {
 ### 5. Bukti Pagination (`GET /courses?page=1&limit=1`)
 ![Pagination](<Screenshot Pengujian/05 pagination.png>)
 ```
+
+
+Paham! Maksud kamu: **Kondisinya di komputer lab itu kamu mau mulai bikin tugas baru dari nol (file masih kosong di lab, dan repo-nya memang belum ada di GitHub web)**, kan?
+
+Bagus sekali kamu tanyakan ini! Cara paling rapi dan **paling anti-gagal** untuk tugas baru dari nol di komputer lab ada 2 langkah awal:
+
+---
+
+# 🌐 LANGKAH 1: Buat Rumahnya Dulu di Web GitHub (Paling Mudah & Rapi)
+
+Biar kamu tidak pusing urusan git init di terminal, **buat wadah kosongnya dulu di web**:
+
+1. Buka browser di lab, buka: **[github.com](https://github.com)** (pastikan sudah login akunmu).
+2. Di pojok kanan atas, klik tanda tambah **`+`** $\rightarrow$ pilih **New repository**.
+3. Isi:
+   * **Repository name**: nama tugasnya (misal: `tugas2-restful-2428240096`).
+   * Pilih **Public**.
+   * **PENTING**: Centang kotak **"Add a README file"** (supaya reponya langsung punya cabang utama / `main` dan tidak kosong melompong).
+4. Klik tombol hijau **Create repository**.
+5. Selesai! Rumah tugasmu di internet sudah siap.
+
+---
+
+# 🖥️ LANGKAH 2: Ambil Repo Kosong Tadi ke Komputer Lab Lewat GitHub Desktop
+
+Sekarang kita turunkan repo yang baru dibuat tadi ke komputer lab:
+
+1. Buka aplikasi **GitHub Desktop** (pastikan sudah login akunmu).
+2. Klik menu **File** $\rightarrow$ **Clone repository...**
+3. Di tab **GitHub.com**, kamu akan langsung melihat nama repo yang baru saja kamu bikin di web tadi (`tugas2-restful-2428240096`).
+4. Klik nama repo tersebut.
+5. Di bagian **Local path** (bawah), pilih folder di komputer lab tempat kamu mau menyimpan file (misal di `D:\tugas-natalia`).
+6. Klik tombol biru **Clone**.
+
+---
+
+# 📂 LANGKAH 3: Mulai Koding di Komputer Lab
+
+Sekarang folder di komputer lab sudah **resmi terhubung (ter-integrasi)** dengan GitHub!
+
+1. Di GitHub Desktop, langsung klik tombol **"Open in Visual Studio Code"**.
+2. VS Code akan terbuka langsung di dalam folder tugas tersebut.
+3. Di VS Code, kamu tinggal buat file-file barumu:
+   * Bikin file `package.json` (`npm init -y`)
+   * Bikin file `app.js`
+   * Bikin folder `Screenshot Pengujian`
+   * Pasang kodingan tugasmu sampai selesai.
+4. Jangan lupa tekan **Ctrl + S** setiap kali membuat atau mengubah file.
+
+---
+
+# 🚀 LANGKAH 4: Bagaimana GitHub Desktop Mendeteksi & Mengirim File Barumu?
+
+Karena dari awal kamu membukanya lewat clone tadi, **semua file baru yang kamu buat di VS Code akan OTOMATIS langsung terdeteksi oleh GitHub Desktop!**
+
+1. Buka kembali aplikasi **GitHub Desktop**.
+2. Di sebelah kiri, kamu akan melihat daftar file baru kamu (`app.js`, `package.json`, foto, dll) berwarna hijau dengan tanda centang biru.
+3. Di pojok kiri bawah (kolom Summary), ketik:
+   ```text
+   init: commit tugas pertama
+   ```
+4. Klik tombol biru **"Commit to main"**.
+5. Setelah di-commit, tombol di atas akan berubah menjadi **"Publish branch"** atau **"Push origin"**.
+6. **Klik tombol "Push origin" tersebut!**
+
+---
+
+### 🎉 Hasilnya:
+Semua file baru yang kamu buat di komputer lab tadi otomatis langsung ter-upload ke web GitHub kamu secara rapi, tanpa ada error bentrok sama sekali!
