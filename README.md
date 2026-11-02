@@ -1,41 +1,45 @@
-# Tugas Pengembangan Aplikasi Web II - RESTful API MongoDB
+# 📚 Dokumentasi Praktikum: RESTful API MongoDB (Embedding, Referencing & Advanced Query)
 
 **Nama:** Natalia Siddharta  
 **NIM:** 2428240096  
-**Topik:** 4 - Akademik (Mata Kuliah)  
+**Mata Kuliah:** Pengembangan Aplikasi Web II  
+**Topik:** 4 - Akademik (Mata Kuliah & Dosen)  
+**Dosen Pengampu:** Nur Rachmat, M.Kom.  
 
 ---
 
-## 📌 Deskripsi Tugas
-Project ini merupakan implementasi RESTful API terintegrasi dengan **MongoDB (Mongoose)** dengan fitur:
-1. **Referencing**: Relasi data antara Model `Course` dan Model `Dosen` menggunakan `ObjectId` dan fungsi `.populate()`.
-2. **Embedding**: Sub-dokumen `jadwal` (hari, jam, ruangan) yang tertanam langsung di dalam `Course`.
-3. **Advanced Querying pada Endpoint Utama (`GET /courses`)**:
-   * **Filtering**: Menyaring data berdasarkan parameter query (misal: `?semester=3`).
-   * **Sorting**: Mengurutkan data (misal: `?sort=-sks`).
-   * **Projection**: Menyeleksi kolom tertentu (misal: `?fields=kode,namaMatkul`).
-   * **Pagination**: Membatasi data per halaman (misal: `?page=1&limit=1`).
+## 📑 Daftar Isi
+1. [Ringkasan Tugas](#1-ringkasan-tugas)
+2. [Persiapan & Konfigurasi MongoDB Atlas](#2-persiapan--konfigurasi-mongodb-atlas)
+3. [Koneksi ke MongoDB Compass](#3-koneksi-ke-mongodb-compass)
+4. [Kendala / Error yang Dihadapi & Solusinya](#4-kendala--error-yang-dihadapi--solusinya)
+5. [Implementasi Kode (Data Modeling & Fitur Query)](#5-implementasi-kode-data-modeling--fitur-query)
+6. [Panduan Pengujian Endpoint (Postman) & Format JSON](#6-panduan-pengujian-endpoint-postman--format-json)
+7. [Bukti Pengujian (Screenshots)](#7-bukti-pengujian-screenshots)
 
 ---
 
-## 📸 Bukti Pengujian (Screenshots)
+## 1. Ringkasan Tugas
+Tugas ini bertujuan memigrasikan penyimpanan data yang awalnya berbasis in-memory array menjadi database NoSQL **MongoDB** menggunakan **Mongoose**. 
+Fitur utama yang diimplementasikan:
+* **Referencing:** Relasi antara schema `Course` dengan schema `Dosen` menggunakan `ObjectId` dan metode `.populate()`.
+* **Embedding:** Penyimpanan sub-dokumen `jadwal` (hari, jam, ruangan) secara langsung di dalam dokumen `Course`.
+* **4 Fitur Query Utama pada Endpoint `GET /courses`:**
+  * **Filtering:** Menyaring data spesifik melalui query parameter (misal `?semester=3`).
+  * **Sorting:** Mengurutkan data (misal `?sort=-sks` secara descending).
+  * **Projection:** Memilih kolom/field tertentu saja yang ditampilkan (misal `?fields=kode,namaMatkul`).
+  * **Pagination:** Membatasi data per halaman menggunakan `.skip()` dan `.limit()` (misal `?page=1&limit=1`).
 
-### 1. Bukti Referencing & Embedding (`GET /courses`)
-Menampilkan data mata kuliah dengan data dosen ter-populate utuh dan array jadwal tertanam:
-![Referencing & Embedding](screenshots/01_referencing_embedding.png)
+---
 
-### 2. Bukti Filtering (`GET /courses?semester=3`)
-Menyaring data agar hanya mata kuliah semester 3 yang tampil:
-![Filtering](screenshots/02_filtering.png)
-
-### 3. Bukti Sorting (`GET /courses?sort=-sks`)
-Mengurutkan mata kuliah dari SKS terbesar ke terkecil:
-![Sorting](screenshots/03_sorting.png)
-
-### 4. Bukti Projection (`GET /courses?fields=kode,namaMatkul`)
-Hanya memunculkan field `kode` dan `namaMatkul`:
-![Projection](screenshots/04_projection.png)
-
-### 5. Bukti Pagination (`GET /courses?page=1&limit=1`)
-Membatasi data 1 per halaman dan menyertakan info total halaman:
-![Pagination](screenshots/05_pagination.png)
+## 2. Persiapan & Konfigurasi MongoDB Atlas
+1. Mendaftar dan masuk ke akun **MongoDB Atlas** ([cloud.mongodb.com](https://cloud.mongodb.com)).
+2. Membuat Database Deployment baru dengan paket **M0 (Free Cluster)** pada region terdekat (AWS Singapore `ap-southeast-1`).
+3. Membuat **Database User** di menu *Database Access*:
+   * Username: `nataliasiddharta965_db_user`
+   * Password: Diset menggunakan karakter alfanumerik tanpa simbol pemisah URL agar tidak error saat parsing.
+4. Mengatur **Network Access**:
+   * Menambahkan IP Address `0.0.0.0/0` (*Allow Access from Anywhere*) agar database dapat diakses secara publik dari laptop/jaringan manapun.
+5. Mengambil Connection String untuk driver Node.js:
+   ```text
+   mongodb://.../db_akademik?ssl=true&replicaSet=...&authSource=admin
